@@ -1,6 +1,34 @@
-/*
-v1.0    October 14, 2011
-*/
+/**************************************************************************************************
+Authour:            Craig Comberbach
+IDE:                CodeBlocks v10.05
+Computer:           Intel Core2 Quad 2.4GHz, 2 GB RAM, Windows 7 64 bit Professional SP1
+Compiler:           GNU GCC Compiler
+Target Platform:    Windows
+Purpose:            Procedurally generate a complete solar system using the GURPS Space rules
+
+Unresolved issues (that may never be resolved):
+1)The primary star of a binary or trinary system SHOULD have a forbidden zone, but at this time it is not factored in
+2)Some forbidden zone schemes allow for planets to circle multiple suns, instead of just one of them. This is not implemented
+
+Version History:
+v1.1    May 20, 2012    -   Craig Comberbach
+    World Diameter wasn't being calculated correctly (in worldDiameter() in SystemSupport.h), it was allowing ranges outside of it its range. It was sloppy math
+    Corrected the spelling of marginality (was Magrinality...) throughout the comments and titles
+    Fixed some issues of code ignorning forbidden zones and generating planets where there shouldn't have been
+        The forbidden range was calculated and forbidden flags were set, but none of it was referenced again
+    Fixed an issue where planets weren't being generated but should have been
+        Primary star has a forbidden radius of 0.0, which is always less than the inner limit radius, therefore, it doesn't get planets
+    Changed how planets align in  their arrays, they now align on the 0 instead of the 1
+        This means all the loops that assumed 1 needed updating (and they are all pervading)
+        This was a kludge at the time, but I ignored early in the project. Later when it was understood what was happening, I could have fixed it (but that would have been a lot of work, so I had left it as is)
+    RVM was modified to no longer factor in tectonics when determining an RVM score (Was minorily affecting the output when it shouldn't have)
+    Changed how files were opened/closed giving what looks like a 3x speed boost (opens before and after all generation is done, not both on each record)
+        In addition to this, I was forgetting to close the main file, so it was never being closed, though constantly being opened to write to
+        This meant that corruption was bound to happen, and this was the cause of the half written records that were overlapping the previous record
+
+v1.0    Oct/14/2011 -    Craig Comberbach
+    -First version
+**************************************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,9 +39,8 @@ v1.0    October 14, 2011
 #include "OutputFile.h"
 #include "System.h"
 #include "SystemSupport.h"
-#include "search.h"
 
-#define REVISION    1.0
+#define REVISION    1.1
 void displaySystem(struct solarSystem system);
 
 int main()
@@ -25,6 +52,7 @@ int main()
 
     printf("Written by Craig Comberbach.\nCreated in 2011\nVersion %0.1f\n\n", REVISION);
 
+
     //Start ID Sentry
     while(ID < 1)//0 is an illegal ID
     {
@@ -32,7 +60,6 @@ int main()
         printf("Generate from ID: ");
         scanf("%d", &ID);
     }
-
 
     //Max ID Sentry
     while(maxID < ID)//The value has to be at least equal to the minimum ID, but also, not below it!
@@ -51,10 +78,13 @@ int main()
         printf("\n3: Onscreen display\n");
         printf("\nChoose output format: ");
         scanf("%d", &choice);
-    }
+    }//*/
 
     //Formating
     printf("\n\n\n\n");
+
+    //Open the files for edditing
+    Open_Files(choice);
 
     for(; ID <= maxID; ++ID)
     {
@@ -73,7 +103,7 @@ int main()
                 break;
             case 3:
                 displaySystem(system);
-                getch();
+                getch();//Pause for the user to preview the output
                 break;
             default:
                 printf("Whoops, I need to fix that!\n");
@@ -82,6 +112,9 @@ int main()
         //Display the currently finished ID of the
         printf("ID = %d\r",ID);
     }
+
+    //Close all open files
+    Close_Files();
 
     //Sign off for now
     printf("\n\n\n\nThanks for using the GURPS Solar System Builder\n\n\n");
@@ -154,7 +187,7 @@ void displaySystem(struct solarSystem system)
         printf("Orbit\tRadius\tType\tSize\tBlckBdy\tIn Mnlt\tOut Mnlt\tRings\n");
         printf("-----\t------\t----\t----\t-------\t-------\t--------\t-----\n");
 
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             printf("%d\t%0.2f\t%c\t%c\t%0.1f\t", planet, system.stars[star].planets[planet].orbit, system.stars[star].planets[planet].type, system.stars[star].planets[planet].size, system.stars[star].planets[planet].blackbodyTemperature);
 
@@ -199,7 +232,7 @@ void displaySystem(struct solarSystem system)
         printf("------\n");
         printf("Body\tAtmo Mass\n");
         printf("----\t---------\n");
-        for(planet = 1; system.stars[star].numberOfPlanets >= planet; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Size and type of planet
             printf("%c%c\t", system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);
@@ -237,7 +270,7 @@ void displaySystem(struct solarSystem system)
         printf("------\n");
         printf("Body\tNtrgen\tAmmonia\tMethane\tCO2\tO2\tWtr Vpr\tHelium\tHydrgn\tNbl Gas\n");
         printf("----\t------\t-------\t-------\t---\t--\t-------\t------\t------\t-------\n");
-        for(planet = 1; system.stars[star].numberOfPlanets >= planet; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             printf("%c%c\t", system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);
 
@@ -352,7 +385,7 @@ void displaySystem(struct solarSystem system)
         printf("------\n");
         printf("Body\tHydro %%\tSurf Temp\tClimate\n");
         printf("----\t-------\t---------\t-------\n");
-        for(planet = 1; system.stars[star].numberOfPlanets >= planet; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Size and type of planet
             printf("%c%c\t", system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);
@@ -400,7 +433,8 @@ void displaySystem(struct solarSystem system)
                     printf("Infernal\t");
                     break;
                 default:
-                    printf("\nFailure on line %d\n", __LINE__);
+                    if(system.stars[star].planets[planet].size != 'E');
+                        printf("\nFailure on line %d (system.stars[%d].planets[%d].atmosphere.climate = %c)\n", __LINE__, star, planet, system.stars[star].planets[planet].atmosphere.climate);
                     break;
             }
 
@@ -474,7 +508,7 @@ void displaySystem(struct solarSystem system)
         printf("Body\tDensity\tMass\tDiamter\tGravity\tMMWR\tAtmospheric Pressure\n");
         printf("----\t-------\t----\t-------\t-------\t----\t--------------------\n");
 
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Size and type of planet
             printf("%c%c\t", system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);
@@ -547,7 +581,7 @@ void displaySystem(struct solarSystem system)
         printf("Body\tType\tm.Orbit\tM.Orbit\tPeriod\tTide\n");
         printf("----\t----\t-------\t-------\t------\t----\n");
 
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Size and type of planet
             printf("%d-%c%c\tPlanet\t", planet, system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);
@@ -640,7 +674,7 @@ void displaySystem(struct solarSystem system)
         printf("Body\tPeriod\tday\tL.Period\tAxial Tilt\n");
         printf("----\t------\t---\t--------\t----------\n");
 
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Size and type of planet
             printf("%c%c\t", system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);
@@ -709,7 +743,7 @@ void displaySystem(struct solarSystem system)
       printf("Body\tVolcanism\tTectonics\tRVM\t\tAffinity\n");
       printf("----\t---------\t---------\t---\t\t--------\n");
 
-      for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+      for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
       {
         //Size and type of planet
         printf("%c%c\t", system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);
@@ -737,7 +771,8 @@ void displaySystem(struct solarSystem system)
               printf("Extreme\t\t");
               break;
             default:
-              printf("\nFailure on line %d(%c)\n", __LINE__, system.stars[star].planets[planet].volcanicActivity);
+              if(system.stars[star].planets[planet].size != 'E')
+                printf("\nFailure on line %d(system.stars[%d].planets[%d].volcanicActivity = %c)\n", __LINE__, star, planet, system.stars[star].planets[planet].volcanicActivity);
               break;
           }
 

@@ -1,6 +1,11 @@
 #ifndef GURPS_H_INCLUDED
 #define GURPS_H_INCLUDED
 
+#define MAX_PLANETS     20
+#define MAX_STARS       3
+#define MAX_MOONS       8
+#define MAX_MOONLETS    18
+
 struct atmospheres
 {
     //Atmosphere consistency
@@ -118,9 +123,9 @@ struct  planet
 
     struct  atmospheres atmosphere;
 
-    struct  moon moons[8];
+    struct  moon moons[MAX_MOONS];
 
-    struct  moonlet moonlets[18];
+    struct  moonlet moonlets[MAX_MOONLETS];
 };
 
 struct star
@@ -150,7 +155,7 @@ struct star
     char    spectralType[2],
             sequence;//'m' for main sequence, 's' for sub-giant, 'g' for giant
 
-    struct  planet planets[20];
+    struct  planet planets[MAX_PLANETS];
 };
 
 struct solarSystem
@@ -162,7 +167,7 @@ struct solarSystem
 
     float   stellarAge;
 
-    struct star stars[3];
+    struct star stars[MAX_STARS];
 };
 
 #endif // GURPS_H_INCLUDED

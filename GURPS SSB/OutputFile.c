@@ -3,6 +3,13 @@
 #include "GURPS.h"
 #include "GenericLibrary.h"
 
+FILE    *systemFile,
+        *starFile,
+        *planetFile,
+        *moonFile,
+        *moonletFile,
+        *fp;//pointer to file
+
 //Different functions for different logical outputs
 void print_CSV_file(struct solarSystem system);//Prints system to a CSV file to be opened with Excel
 void print_DB_file(struct solarSystem system);//Prints system to a file series of text files to be used with Access
@@ -13,6 +20,8 @@ void print_star(struct solarSystem system, FILE *file);     //Only prints star i
 void print_planet(struct solarSystem system, FILE *file);   //Only prints planet info
 void print_moon(struct solarSystem system, FILE *file);     //Only prints moon info
 void print_moonlet(struct solarSystem system, FILE *file);  //Only prints moonlet info
+void Open_Files(unsigned int choice);//Opens all files
+void Close_Files();//Closes all open database files
 
 void print_system(struct solarSystem system, FILE *file)
 {
@@ -136,7 +145,7 @@ void print_planet(struct solarSystem system, FILE *file)
     for(star = 0; star < system.numberOfStars; ++star)
     {
         //Loop over Planet
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //System ID
             fprintf(file, "%d,", system.uniqueID);
@@ -247,7 +256,7 @@ void print_planet(struct solarSystem system, FILE *file)
                 //Tectonic Activity
                 fprintf(file,"N/A,");
 
-                //Magrinality
+                //Marginality
                 fprintf(file,"N/A,");
 
                 //Suffocating
@@ -515,7 +524,7 @@ void print_planet(struct solarSystem system, FILE *file)
                         break;
                 }
 
-                //Magrinality
+                //Marginality
                 switch(system.stars[star].planets[planet].atmosphere.marginality)
                 {
                     case 'P':
@@ -725,7 +734,7 @@ void print_moon(struct solarSystem system, FILE *file)
 
     for(star = 0; star < system.numberOfStars; ++star)
     {
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             for(moon = 1; moon <= system.stars[star].planets[planet].majourMoons; ++moon)
             {
@@ -1114,7 +1123,7 @@ void print_moonlet(struct solarSystem system, FILE *file)
     for(star = 0; star < system.numberOfStars; ++star)
     {
         //Loop over Planet
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //moonlet
             for(moonlet = 0; moonlet < (system.stars[star].planets[planet].innerMoonlets + system.stars[star].planets[planet].outerMoonlets); ++moonlet)
@@ -1161,19 +1170,7 @@ void print_moonlet(struct solarSystem system, FILE *file)
 //Prints to database files
 void print_DB_file(struct solarSystem system)
 {
-    FILE            *systemFile,
-                    *starFile,
-                    *planetFile,
-                    *moonFile,
-                    *moonletFile;
     static int      born = 1;
-
-    //Create/Append file (always do this, as when the function returns, these are lost)
-    systemFile = fopen("System.csv","a");   //Name of file, for append
-    starFile = fopen("Star.csv","a");       //Name of file, for append
-    planetFile = fopen("Planet.csv","a");   //Name of file, for append
-    moonFile = fopen("Moon.csv","a");       //Name of file, for append
-    moonletFile = fopen("Moonlet.csv","a"); //Name of file, for append
 
     //Only do this on startup, these are row headers, which should appear exactly once per file!
     if(born == 1)
@@ -1181,7 +1178,7 @@ void print_DB_file(struct solarSystem system)
         //Setup the headers of the various files
         fprintf(systemFile, "System ID,Number of Stars,Stellar Age\n");
         fprintf(starFile,"System ID,Star,Primary Star,Sequence,Mass,Radius,Temperature,Luminosity,Spectral Type,Average Orbit,Eccentricity,Minimum Orbit,Maximum Orbit,Orbital Period,Ungenerated Companion Star\n");
-        fprintf(planetFile, "System ID,Star,Orbit,Size,Type,Rings,Orbital Distance,Minimum Orbit,Maximum Orbit,Eccentricity,Axial Tilt,Orbital Period,Total Tide,Rotational Period,Temperature,Blackbody Temperature,Gravity,Diameter,Density,Mass,Day Length,Hydrographic Coverage,MMWR,RVM,Habitability,Affinity,Volcanic Activity,Tectonic Activity,Magrinality,Suffocating,Toxicity,Corrosivity,Climate,Atmospheric Pressure,Nitrogen,Ammonia,Methane,CO2,O2,Water Vapour,Helium,Hydrogen,Noble Gases\n");
+        fprintf(planetFile, "System ID,Star,Orbit,Size,Type,Rings,Orbital Distance,Minimum Orbit,Maximum Orbit,Eccentricity,Axial Tilt,Orbital Period,Total Tide,Rotational Period,Temperature,Blackbody Temperature,Gravity,Diameter,Density,Mass,Day Length,Hydrographic Coverage,MMWR,RVM,Habitability,Affinity,Volcanic Activity,Tectonic Activity,Marginality,Suffocating,Toxicity,Corrosivity,Climate,Atmospheric Pressure,Nitrogen,Ammonia,Methane,CO2,O2,Water Vapour,Helium,Hydrogen,Noble Gases\n");
         fprintf(moonFile, "System ID,Star,Planet,Moon,Size,Type,Orbit,Obital Period,Total Tide,Rotational Period,Temperature,Gravity,Diameter,Density,Mass,Day Length,Lunar Cycle,Hydrographic Coverage,MMWR,RVM,Habitability,Affinity,Volcanic Activity,Tectonic Activity,Marginality,Suffocating,Toxicity,Corrosivity,Climate,Atmospheric Pressure,Nitrogen,Ammonia,Methane,CO2,O2,Water Vapour,Helium,Hydrogen,Noble Gases\n");
         fprintf(moonletFile, "System ID,Star,Planet,Location,Orbit,Period\n");
 
@@ -1204,21 +1201,46 @@ void print_DB_file(struct solarSystem system)
     //Save Moonlets
     print_moonlet(system, moonletFile);
 
-    //Close the files
+    return;
+}
+
+void Open_Files(unsigned int choice)
+{
+    switch(choice)
+    {
+        case 1://DB output
+            systemFile = fopen("System.csv","a");   //Name of file, for append
+            starFile = fopen("Star.csv","a");       //Name of file, for append
+            planetFile = fopen("Planet.csv","a");   //Name of file, for append
+            moonFile = fopen("Moon.csv","a");       //Name of file, for append
+            moonletFile = fopen("Moonlet.csv","a"); //Name of file, for append
+            break;
+        case 2://Single output
+            fp = fopen("Generated Solar System.csv","a");//Name of file, for append
+            break;
+        default://Onscreen or error
+            break;
+    }
+
+    return;
+}
+//Close the open files
+void Close_Files()
+{
+    //Database files
     fclose(systemFile);
     fclose(starFile);
     fclose(planetFile);
     fclose(moonFile);
     fclose(moonletFile);
 
+    //Close single file output
+    fclose(fp);
     return;
 }
 
 void print_CSV_file(struct solarSystem system)
 {
-	FILE *fp;//pointer to file
-	fp = fopen("Generated Solar System.csv","a");//Name of file, for append
-
 	int	star,
 		planet,
 		moon,
@@ -1309,10 +1331,10 @@ void print_CSV_file(struct solarSystem system)
 		fprintf(fp, "Size,Type,Rings,Orbit,Minimum Orbit,Maximum Orbit,Eccentricity,Axial Tilt,Orbital Period,Total Tide,");
 		fprintf(fp, "Rotational Period,Temperature,Blackbody Temperature,Gravity,Diameter,Density,Mass,Day Length,");
 		fprintf(fp, "Hydrographic Coverage,MMWR,RVM,Habitability,Affinity,Volcanic Activity,Tectonic Activity,");
-		fprintf(fp, "Magrinality,Suffocating,Toxicity,Corrosivity,Climate,Atmospheric Pressure,Atmospheric Composition\n");
+		fprintf(fp, "Marginality,Suffocating,Toxicity,Corrosivity,Climate,Atmospheric Pressure,Atmospheric Composition\n");
 
 		//Planets
-		for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+		for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
 		{
 			//Empty Orbits, Yay
 			if(system.stars[star].planets[planet].type == 'E')
@@ -1534,7 +1556,7 @@ void print_CSV_file(struct solarSystem system)
 						fprintf(fp,"Large,");
 						break;
 					default:
-						printf("\nFailure on line %d\n", __LINE__);//Displays in terminal window, not output file!
+						printf("\nFailure on line %d (system.stars[%d].planets[%d].size = %c)\n", __LINE__, star, planet, system.stars[star].planets[planet].size);//Displays in terminal window, not output file!
 						break;
 				}
 
@@ -2278,7 +2300,7 @@ void print_CSV_file(struct solarSystem system)
 					//MMWR,RVM,Habitability,Affinity,Volcanic Activity
 					fprintf(fp,"N/A,N/A,N/A,N/A,N/A,");
 
-					//Tectonic Activity,Magrinality,Suffocating,Toxicity,Corrosivity
+					//Tectonic Activity,Marginality,Suffocating,Toxicity,Corrosivity
 					fprintf(fp,"N/A,N/A,N/A,N/A,N/A,");
 
 					//Climate,Atmospheric Pressure,Atmospheric Composition

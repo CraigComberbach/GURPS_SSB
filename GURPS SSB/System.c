@@ -891,7 +891,6 @@ struct solarSystem step19(struct solarSystem system)//Star Orbits
             system.stars[star].minOrbit = 0.0;//Because its not eccentric and has no orbit
             system.stars[star].maxOrbit = 0.0;//Because its not eccentric and has no orbit
         }
-
         else
         {
             //The last star in a trinary system gets an additional +6
@@ -1030,12 +1029,12 @@ struct solarSystem step20(struct solarSystem system)//Limits
         system.stars[loop].innerForbiddenZone = system.stars[loop].minOrbit / 3;
         system.stars[loop].outerForbiddenZone = system.stars[loop].maxOrbit * 3;
         if(system.stars[loop].innerForbiddenZone < system.stars[loop].innerLimitRadius)
-            system.stars[loop].forbiddenFlag = 1; //No planets
-        else if(system.stars[loop].innerForbiddenZone > system.stars[loop].innerLimitRadius)
         {
-            system.stars[loop].forbiddenFlag = 2; //Planets for each sun
-            system.stars[loop].innerLimitRadius = system.stars[loop].innerForbiddenZone;
+            if(!testFloatEquality(system.stars[loop].innerForbiddenZone, 0.0, 0.01))
+                system.stars[loop].forbiddenFlag = 1; //No planets
         }
+        else if(system.stars[loop].innerForbiddenZone > system.stars[loop].innerLimitRadius)
+            system.stars[loop].forbiddenFlag = 2; //Planets for each sun
         else if(system.stars[loop].outerForbiddenZone < system.stars[loop].outerLimitRadius)
             system.stars[loop].forbiddenFlag = 3; //Planets circle this one and its companion
         else if(system.stars[loop].outerForbiddenZone > system.stars[loop].outerLimitRadius)
@@ -1051,13 +1050,20 @@ struct solarSystem step20(struct solarSystem system)//Limits
 struct solarSystem step21(struct solarSystem system)//Placing first planets
 {
     int roll,
-        orbit;
+        star;
 
-    for(orbit = 0; orbit < system.numberOfStars; ++orbit)
+    for(star = 0; star < system.numberOfStars; ++star)
     {
+        //Check for forbiddeness first
+        if(system.stars[star].forbiddenFlag == 1)
+        {
+            system.stars[star].gasGiantFlag = 1;
+            continue;//No planets for you, or at least gas giants as of yet
+        }
+
         //Determine Gas Giant setup
-        if((system.stars[orbit].snowLine > system.stars[orbit].innerForbiddenZone) && (system.stars[orbit].snowLine < system.stars[orbit].outerForbiddenZone))
-            system.stars[orbit].gasGiantFlag = 1;
+        if((system.stars[star].snowLine > system.stars[star].innerForbiddenZone) && (system.stars[star].snowLine < system.stars[star].outerForbiddenZone))
+            system.stars[star].gasGiantFlag = 1;
         else
         {
             roll = polyRollDice(3,6);
@@ -1071,21 +1077,21 @@ struct solarSystem step21(struct solarSystem system)//Placing first planets
                 case 8:
                 case 9:
                 case 10:
-                    system.stars[orbit].gasGiantFlag = 1;
+                    system.stars[star].gasGiantFlag = 1;
                     break;
                 case 11:
                 case 12:
-                    system.stars[orbit].gasGiantFlag = 2;
+                    system.stars[star].gasGiantFlag = 2;
                     break;
                 case 13:
                 case 14:
-                    system.stars[orbit].gasGiantFlag = 3;
+                    system.stars[star].gasGiantFlag = 3;
                     break;
                 case 15:
                 case 16:
                 case 17:
                 case 18:
-                    system.stars[orbit].gasGiantFlag = 4;
+                    system.stars[star].gasGiantFlag = 4;
                     break;
                 default:
                     printf("\nFailure on line %d\n", __LINE__);
@@ -1094,32 +1100,31 @@ struct solarSystem step21(struct solarSystem system)//Placing first planets
         }
 
         //t laying the gas giant layout
-        switch(system.stars[orbit].gasGiantFlag)
+        switch(system.stars[star].gasGiantFlag)
         {
             case 0://It should not be in an initialized state, this is a failure
                 printf("\nInitialized failure on line %d\n", __LINE__);
                 break;
             case 1://No Gas Giants
-                //Basically this is a filler line, as nothing happens here
-                system.stars[orbit].planets[1].orbit = 0;
                 break;
             case 2://Conventional Arrangement
-                system.stars[orbit].planets[1].orbit = (((polyRollDice(2,6) - 2) * 0.05) + 1.0) * system.stars[orbit].snowLine;
+                system.stars[star].planets[0].orbit = (((polyRollDice(2,6) - 2) * 0.05) + 1.0) * system.stars[star].snowLine;
                 break;
             case 3://Eccentric Arrangement
-                if(system.stars[orbit].snowLine < system.stars[orbit].outerForbiddenZone)
-                    system.stars[orbit].planets[1].orbit = system.stars[orbit].outerForbiddenZone * ((polyRollDice(1,6) * 0.05) + 1);
-                else
-                    system.stars[orbit].planets[1].orbit = (polyRollDice(1,6) * 0.125) * system.stars[orbit].snowLine;
+                  system.stars[star].planets[0].orbit = (polyRollDice(1,6) * 0.125) * system.stars[star].snowLine;
                 break;
             case 4://Epistellar Arrangement
-                system.stars[orbit].planets[1].orbit = (polyRollDice(3,6) * 0.1) * system.stars[orbit].innerLimitRadius;
+                system.stars[star].planets[0].orbit = (polyRollDice(3,6) * 0.1) * system.stars[star].innerLimitRadius;
                 break;
             default:
                 printf("\nFailure on line %d\n", __LINE__);
                 break;
         }
-        system.stars[orbit].firstGasGiant = system.stars[orbit].planets[1].orbit;
+        if((system.stars[star].planets[1].orbit > system.stars[star].innerForbiddenZone) && (system.stars[star].planets[1].orbit < system.stars[star].outerForbiddenZone))
+                    system.stars[star].planets[1].orbit = 0;//Oops, it appears it was illegal, oh well, revoke the orbit!
+
+        //Assign the first gas giant orbit, this has significance later on as to which was the first gas giant!
+        system.stars[star].firstGasGiant = system.stars[star].planets[1].orbit;
     }
     return system;
 }
@@ -1127,20 +1132,30 @@ struct solarSystem step21(struct solarSystem system)//Placing first planets
 struct solarSystem step22(struct solarSystem system)//Place Planetary Orbits
 {
     int     planetLoop,
-            orbitLoop;
+            star;
     float   previousOrbit;
 
     //Produce results for each star
-    for(orbitLoop = 0; orbitLoop < system.numberOfStars; ++orbitLoop)
+    for(star = 0; star < system.numberOfStars; ++star)
     {
-        switch(system.stars[orbitLoop].gasGiantFlag)
+        if(system.stars[star].forbiddenFlag == 1)
+        {
+            system.stars[star].numberOfPlanets = 0;
+            continue;//No planets for you
+        }
+
+        switch(system.stars[star].gasGiantFlag)
         {
             //1 = No Gas Giants, 2 = Conventional Gas Giant, 3 = Eccentric Gas Giant, 4 = Epistellar Gas Giant
             case 1://With no Gas Giants, the orbit radii is specially determined
                 //Special outermost location
-                planetLoop = 1;//Initializes where to t from
-                previousOrbit = system.stars[orbitLoop].outerLimitRadius / ((polyRollDice(1,6) * 0.05) + 1);//t at a point close to the outer legal limit
-                system.stars[orbitLoop].planets[planetLoop].orbit = previousOrbit;//Assign this as the first orbit
+                planetLoop = 0;//Initializes where to t from
+                if((system.stars[star].outerLimitRadius < system.stars[star].innerForbiddenZone) || (system.stars[star].outerLimitRadius > system.stars[star].outerForbiddenZone))
+                    previousOrbit = system.stars[star].outerLimitRadius / ((polyRollDice(1,6) * 0.05) + 1);//Start at a point close to the outer legal limit
+                else
+                    previousOrbit = system.stars[star].innerForbiddenZone / ((polyRollDice(1,6) * 0.05) + 1);//Start at a point close to the inner forbidden limit
+
+                 system.stars[star].planets[planetLoop].orbit = previousOrbit;//Assign this as the first orbit
                 ++planetLoop;
 
                 //Work inward until either the inner limit radius or a forbidden zone is encountered
@@ -1148,52 +1163,69 @@ struct solarSystem step22(struct solarSystem system)//Place Planetary Orbits
                 {
                     previousOrbit = nextOrbit(previousOrbit, 0);//Generate the next orbit inwards
 
-                    if((previousOrbit > system.stars[orbitLoop].innerLimitRadius) && (previousOrbit > system.stars[orbitLoop].outerForbiddenZone))//Test to see if this new orbit is still valid
-                        system.stars[orbitLoop].planets[planetLoop].orbit = previousOrbit;//If it is, assign it and get ready to go again
+                    if(previousOrbit > system.stars[star].innerLimitRadius)//If we aren't too close to the sun
+                    {
+                        if((previousOrbit > system.stars[star].outerForbiddenZone) || (previousOrbit < system.stars[star].innerForbiddenZone))//And we aren't in a forbidden zone
+                            system.stars[star].planets[planetLoop].orbit = previousOrbit;//Assign the orbit and get ready to go again
+                    }
                     else
-                        break;//If it is illegal then jump out of the loop
+                        break;//Get out once we are too close too the sun
                 }
                 break;
             case 2:
             case 3:
             case 4://If the system has Gas giants then it can use the following
-                planetLoop = 2;//Initializes where to t from
-
-                //Going outwards. But from what?! From this -> system.planets[orbitLoop].orbit[0]
-                previousOrbit = system.stars[orbitLoop].planets[1].orbit;//The ting point for going either way
+                //Going outwards. But from what?! From this -> system.planets[star].orbit[0]
+                previousOrbit = system.stars[star].planets[0].orbit;//The ting point for going either way
 
                 //Move Outwards
-                for(;; ++planetLoop)
+                for(planetLoop = 1; planetLoop < MAX_PLANETS; ++planetLoop)//0 is already taken by a Gas giant, don't test it
                 {
                     previousOrbit = nextOrbit(previousOrbit, 1);//Generate the next legal orbit outwards
 
-                    if(previousOrbit < system.stars[orbitLoop].outerLimitRadius)//Test if it is a legal orbit
-                        system.stars[orbitLoop].planets[planetLoop].orbit = previousOrbit;//If it is, officially assign it
+                    if(previousOrbit < system.stars[star].outerLimitRadius)//If we aren't too far from the sun
+                    {
+                        if((previousOrbit > system.stars[star].outerForbiddenZone) || (previousOrbit < system.stars[star].innerForbiddenZone))//And we aren't in a forbidden zone
+                            system.stars[star].planets[planetLoop].orbit = previousOrbit;//Assign the orbit and get ready to go again
+                    }
                     else
-                        break;//Otherwise move onto generating inwards
+                        break;//Get out once we are too close too the sun
                 }
-                //Going inwards, DO NOT set planetLoop, keep using the last number produced from the previous step!
-                previousOrbit = system.stars[orbitLoop].planets[1].orbit;//The ting point for going either way
 
-                for(;; ++planetLoop)
+                //Going inwards, DO NOT set planetLoop, keep using the last number produced from the previous step!
+                previousOrbit = system.stars[star].planets[1].orbit;//The ting point for going either way
+
+                for(;planetLoop < MAX_PLANETS; ++planetLoop)
                 {
                     previousOrbit = nextOrbit(previousOrbit, 0);//Generate the next legal orbit outwards
 
-                    if((previousOrbit > system.stars[orbitLoop].innerLimitRadius) && (previousOrbit > system.stars[orbitLoop].outerForbiddenZone))//Test if it is a legal orbit
-                        system.stars[orbitLoop].planets[planetLoop].orbit = previousOrbit;//If it is, officially assign it
+                    if(previousOrbit > system.stars[star].innerLimitRadius)//If we aren't too close to the sun
+                    {
+                        if((previousOrbit > system.stars[star].outerForbiddenZone) || (previousOrbit < system.stars[star].innerForbiddenZone))//And we aren't in a forbidden zone
+                            system.stars[star].planets[planetLoop].orbit = previousOrbit;//Assign the orbit and get ready to go again
+                    }
                     else
-                        break;//Otherwise move onto generating inwards
+                        break;//Get out once we are too close too the sun
                 }
                 break;
             default:
                 printf("\nFailure on line %d\n", __LINE__);
                 break;
         }
-        system.stars[orbitLoop].numberOfPlanets = planetLoop - 1;
+
+        //Initialize (Just in case)
+        system.stars[star].numberOfPlanets = 0;
+
+        //Count the valid orbits for the total number of planets
+        for(planetLoop = 0; planetLoop < MAX_PLANETS; ++planetLoop)
+        {
+            if(system.stars[star].planets[planetLoop].orbit > 0.0)
+                system.stars[star].numberOfPlanets++;
+        }
     }
 
-    //Function sorts the orbits so that they are in order (1 is innermost and n is outermost)
-    system = orbitSort(system, 0);
+    //Function sorts the orbits so that they are in order
+    system = orbitSort(system);
 
     return system;
 }
@@ -1210,22 +1242,25 @@ struct solarSystem step23(struct solarSystem system)//Place Worlds
         //Labels the first Gas Giant as a gas giant
         if(system.stars[orbit].gasGiantFlag != 1)
         {
-            for(planet = 1; ; ++planet)
+            for(planet = 0; ; ++planet)
             {
-                if(testFloatEquality(system.stars[orbit].planets[planet].orbit, system.stars[orbit].firstGasGiant, 0.01))
+                if(testFloatEquality(system.stars[orbit].planets[planet].orbit, system.stars[orbit].firstGasGiant, 0.001))
                 {
                     system.stars[orbit].planets[planet].type = 'G';
                     break;
                 }
-                else if(planet > 20)
-                    printf("\nFailure on line %d\n", __LINE__);
+                else if(planet > MAX_PLANETS)
+                {
+                    printf("\nFailure on line %d (system.stars[%d].firstGasGiant = %0.2f)", __LINE__, orbit, system.stars[orbit].firstGasGiant);
+                    break;
+                }
             }
 
             //Now to generate Gas Giants beyond the snow line
             pastSnowLineFlag = 0;//Resets the flag for each orbit, used to determine size of gas giants in a later step
 
 			//Ends when it enters a non valid orbit
-			for(planet = 1; system.stars[orbit].planets[planet].orbit > system.stars[orbit].planets[planet-1].orbit; ++planet)//As long as the current orbit is greater than the previous orbit, keep going
+			for(planet = 0; system.stars[orbit].planets[planet].orbit > system.stars[orbit].planets[planet-1].orbit; ++planet)//As long as the current orbit is greater than the previous orbit, keep going
             {
                 if(system.stars[orbit].planets[planet].orbit > system.stars[orbit].snowLine)//for each orbit past snowline, increment by 1
                     ++pastSnowLineFlag;
@@ -1288,35 +1323,35 @@ struct solarSystem step23(struct solarSystem system)//Place Worlds
                     //Size selector
                     switch(roll)
                     {
-                    case 3:
-                    case 4:
-                    case 5:
-                    case 6:
-                    case 7:
-                    case 8:
-                    case 9:
-                    case 10:
-                        system.stars[orbit].planets[planet].size = 'S';//Small sized
-                        break;
-                    case 11:
-                    case 12:
-                    case 13:
-                    case 14:
-                    case 15:
-                    case 16:
-                        system.stars[orbit].planets[planet].size = 'M';//Medium Sized
-                        break;
-                    case 17:
-                    case 18:
-                    case 19:
-                    case 20:
-                    case 21:
-                    case 22:
-                        system.stars[orbit].planets[planet].size = 'L';//Large sized
-                        break;
-                    default:
-                        printf("\nFailure on line %d\n", __LINE__);
-                        break;
+                        case 3:
+                        case 4:
+                        case 5:
+                        case 6:
+                        case 7:
+                        case 8:
+                        case 9:
+                        case 10:
+                            system.stars[orbit].planets[planet].size = 'S';//Small sized
+                            break;
+                        case 11:
+                        case 12:
+                        case 13:
+                        case 14:
+                        case 15:
+                        case 16:
+                            system.stars[orbit].planets[planet].size = 'M';//Medium Sized
+                            break;
+                        case 17:
+                        case 18:
+                        case 19:
+                        case 20:
+                        case 21:
+                        case 22:
+                            system.stars[orbit].planets[planet].size = 'L';//Large sized
+                            break;
+                        default:
+                            printf("\nFailure on line %d\n", __LINE__);
+                            break;
                     }
                 }
             }
@@ -1327,10 +1362,11 @@ struct solarSystem step23(struct solarSystem system)//Place Worlds
     for(orbit = 0; orbit < system.numberOfStars; ++orbit)
     {
         //Place everything else into the orbits!
-        for(planet = 1; system.stars[orbit].planets[planet].orbit > system.stars[orbit].planets[planet-1].orbit; ++planet)//As long as the current orbit is greater than the previous orbit, keep going
+        for(planet = 0; planet < system.stars[orbit].numberOfPlanets; ++planet)
         {
             if(system.stars[orbit].planets[planet].type != 'G')//If its not a Gas Giant, then determine what it is
             {
+
                 //Base roll, modifiers to follow
                 roll = polyRollDice(3, 6);
 
@@ -1411,7 +1447,7 @@ struct solarSystem step24(struct solarSystem system)//Place Moons
 
     for(orbit = 0; orbit < system.numberOfStars; ++orbit)
     {
-        for(planet = 1; system.stars[orbit].numberOfPlanets >= planet; ++planet)
+        for(planet = 0; planet < system.stars[orbit].numberOfPlanets; ++planet)
         {
             if(system.stars[orbit].planets[planet].type == 'G')
             {
@@ -1506,7 +1542,7 @@ struct solarSystem step24(struct solarSystem system)//Place Moons
                     else if(system.stars[orbit].planets[planet].size == 'M')
                         roll = roll;
                     else
-                        printf("\nFailure on line %d (%c)\n", __LINE__, system.stars[orbit].planets[planet].size);
+                        printf("\nFailure on line %d (system.stars[%d].planets[%d].size = %c)\n", __LINE__, orbit, planet, system.stars[orbit].planets[planet].size);
 
                     //If no moons then moonlets, or other way around!
                     if(roll <= 0)
@@ -1530,7 +1566,7 @@ struct solarSystem step24(struct solarSystem system)//Place Moons
                         else if(system.stars[orbit].planets[planet].size == 'M')
                             roll = roll;
                         else
-                            printf("\nFailure on line %d\n", __LINE__);
+                            printf("\nFailure on line %d(system.stars[%d].planets[%d].size = %c)\n", __LINE__, orbit, planet, system.stars[orbit].planets[planet].size);
 
                         if(roll < 0)
                             roll = 0;
@@ -1577,6 +1613,7 @@ struct solarSystem step24(struct solarSystem system)//Place Moons
             }
         }
     }
+
     return system;
 }
 
@@ -1589,10 +1626,10 @@ struct solarSystem step25(struct solarSystem system)//World Types
     //Sets blackbody temperature and world type
     for(orbit = 0; orbit < system.numberOfStars; ++orbit)
     {
-        for(planet = 1; system.stars[orbit].numberOfPlanets >= planet; ++planet)
+        for(planet = 0; planet < system.stars[orbit].numberOfPlanets; ++planet)
         {
             //Black Body Temperature of each planet and moon (Moons are the same as planets)
-            system.stars[orbit].planets[planet].blackbodyTemperature = 278 * (sqrt(sqrt(system.stars[orbit].luminosity))/sqrt(system.stars[orbit].planets[planet].orbit));
+            system.stars[orbit].planets[planet].blackbodyTemperature = (278 * sqrt(sqrt(system.stars[orbit].luminosity))) / sqrt(system.stars[orbit].planets[planet].orbit);
 
             //Assigns a type to the world
             if(system.stars[orbit].planets[planet].type == ' ')
@@ -1600,14 +1637,14 @@ struct solarSystem step25(struct solarSystem system)//World Types
 
 			//If a failure occured, here is the recourse
             if(system.stars[orbit].planets[planet].type == 0)
-                printf("\nFailure on line %d (0x%x)\n", __LINE__, system.stars[orbit].planets[planet].type);
+                printf("\nFailure on line %d (system.stars[%d].planets[%d].type = 0)\n", __LINE__, orbit, planet);
 
             for(moon = system.stars[orbit].planets[planet].majourMoons; moon > 0; --moon)
             {
                 system.stars[orbit].planets[planet].moons[moon].type = planetoidType(system.stars[orbit].planets[planet].blackbodyTemperature, system.stars[orbit].planets[planet].moons[moon].size, system.stars[orbit].planets[planet].size, system.stars[orbit].mass, system.stellarAge);
 
                 if(system.stars[orbit].planets[planet].moons[moon].type == 0)
-                    printf("\nFailure on line %d\n", __LINE__);
+                    printf("\nFailure on line %d (star = %d, Planet = %d, moon = %d)\n", __LINE__, system.stars[orbit].planets[planet].type, orbit, planet, moon);
             }
         }
     }
@@ -1624,7 +1661,7 @@ struct solarSystem step26(struct solarSystem system)//Atmosphere
 
     for(star = 0; star < system.numberOfStars; ++star)
     {
-        for(planet = 1; system.stars[star].numberOfPlanets >= planet; ++planet)
+        for(planet = 0; system.stars[star].numberOfPlanets >= planet; ++planet)
         {
             //Planets first
             if(atmosphereCheck(system.stars[star].planets[planet].size, system.stars[star].planets[planet].type))
@@ -1644,7 +1681,7 @@ struct solarSystem step26(struct solarSystem system)//Atmosphere
     }
 
     for(star = 0; star < system.numberOfStars; ++star)
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Determine the atmosphere specifics
             tempAtmosphere = atmosphericComposition(system.stars[star].planets[planet].size, system.stars[star].planets[planet].type);//For planets
@@ -1696,7 +1733,7 @@ struct solarSystem step27(struct solarSystem system)//Hydrographic Coverage
 
     for(star = 0; star < system.numberOfStars; ++star)
     {
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Wet and Dry Greenhouse planets need special attention
             if((system.stars[star].planets[planet].type == 'g') && (system.stars[star].planets[planet].atmosphere.carbonDioxide == 1))//Its a
@@ -1726,7 +1763,7 @@ struct solarSystem step28(struct solarSystem system)//Climate
     //0 degrees Celsius = 273.15 kelvin
     for(star = 0; star < system.numberOfStars; ++star)
     {
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Average Surface temperature
             system.stars[star].planets[planet].temperature = averageTemperature(system.stars[star].planets[planet].size, system.stars[star].planets[planet].type, system.stars[star].planets[planet].hydrographicCoverage, system.stars[star].planets[planet].atmosphere.mass, system.stars[star].planets[planet].blackbodyTemperature);
@@ -1759,7 +1796,7 @@ struct solarSystem step29(struct solarSystem system)//World Sizes
 
     for(star = 0; star < system.numberOfStars; ++star)
     {
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             if(system.stars[star].planets[planet].type == 'G')
                 system = worldSizesGasGiant(system, star, planet);
@@ -1815,11 +1852,11 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
         }
 
         //Orbital period of a planet in days
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             system.stars[star].planets[planet].orbitalPeriod = orbitalPeriodDays(system.stars[star].planets[planet].orbit, system.stars[star].mass + 0.000003 * system.stars[star].planets[planet].mass);
 
         //Planetary eccentricity, minimum orbit and maximum orbit
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             system.stars[star].planets[planet].eccentricity = planetaryEccentricity(system, star, planet);
             system.stars[star].planets[planet].minOrbit = (1 - system.stars[star].planets[planet].eccentricity) * system.stars[star].planets[planet].orbit;
@@ -1827,7 +1864,7 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
         }
 
         //satelite orbital radius
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             for(moon = 1; moon <= system.stars[star].planets[planet].majourMoons; ++moon)
                 system.stars[star].planets[planet].moons[moon].orbit = satelliteOrbitalRadius(system.stars[star].planets[planet].diameter, 2, system.stars[star].planets[planet].type, system.stars[star].planets[planet].moons[moon].size, system.stars[star].planets[planet].size);
 
@@ -1836,12 +1873,12 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
         system = moonOrbitFixer(system, star, planet);
 
         //Orbital Period
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             for(moon = 1; moon <= system.stars[star].planets[planet].majourMoons; ++moon)
                 system.stars[star].planets[planet].moons[moon].orbitalPeriod = 0.0588 * orbitalPeriodDays(system.stars[star].planets[planet].moons[moon].orbit, system.stars[star].planets[planet].moons[moon].mass + system.stars[star].planets[planet].mass);
 
         //Moon Tidal properties
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             for(moon = 1; moon <= system.stars[star].planets[planet].majourMoons; ++moon)
             {
                 system.stars[star].planets[planet].moons[moon].tideOnPlanetFromMoon = 17800000.0 * system.stars[star].planets[planet].moons[moon].mass * system.stars[star].planets[planet].diameter / pow(system.stars[star].planets[planet].moons[moon].orbit, 3.0);
@@ -1850,7 +1887,7 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
             }
 
         //Planetary Tidal properties
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //Total tidal effects on planet
             if((system.stars[star].planets[planet].type == 'E') || (system.stars[star].planets[planet].type == 'A'))//If its an Asteroid Belt or empty orbit, they have no tidal effects
@@ -1876,7 +1913,7 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
         }
 
         //Planetary Rotational Period
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             if(system.stars[star].planets[planet].totalTide > 50.0)//Over 50 leads to tide locking
                 if(system.stars[star].planets[planet].majourMoons > 0)//If it has moons then it is tidelocked to the innermost moon
@@ -1907,7 +1944,7 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
         }
 
         //Moon Rotational Period
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             for(moon = 1; moon <= system.stars[star].planets[planet].majourMoons; ++moon)
             {
                 if(system.stars[star].planets[planet].moons[moon].totalTide > 50.0)//Over 50 leads to tide locking
@@ -1925,7 +1962,7 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
             }
 
             //Planetary Local Calenadar (Length of apparent day)
-            for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+            for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             {
                 //Length of an apparent day on the planet
                 system.stars[star].planets[planet].dayLength = localCalendar(system.stars[star].planets[planet].orbitalPeriod, system.stars[star].planets[planet].rotationalPeriod);
@@ -1942,7 +1979,7 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
             }
 
             //Axial Tilt
-            for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+            for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             {
                     switch(polyRollDice(3, 6))
                     {
@@ -2000,7 +2037,7 @@ struct solarSystem step30(struct solarSystem system)//Dynamic Properties
             }
 
             //Moonlets!
-            for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+            for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
             {
                 //Inner Moonlets
                 for(moon = 0; moon < system.stars[star].planets[planet].innerMoonlets; ++moon)
@@ -2041,7 +2078,7 @@ struct solarSystem step31(struct solarSystem system)//Geologic Activity
 
   for(star = 0; star < system.numberOfStars; ++star)
   {
-    for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+    for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
     {
       //Volcanic Activity
       system = volcanism(system, star, planet, 0);
@@ -2071,13 +2108,13 @@ struct solarSystem step32(struct solarSystem system)//Resources and Habitability
 
     for(star = 0; star < system.numberOfStars; ++star)
     {
-        for(planet = 1; planet <= system.stars[star].numberOfPlanets; ++planet)
+        for(planet = 0; planet < system.stars[star].numberOfPlanets; ++planet)
         {
             //RVM
             if(system.stars[star].planets[planet].type == 'A')//Asteroid belts
                 system.stars[star].planets[planet].RVM = asteroidRVM();
             else if(system.stars[star].planets[planet].type != 'E')//Non-Empty orbits
-                system.stars[star].planets[planet].RVM = planetRVM(system.stars[star].planets[planet].volcanicActivity, system.stars[star].planets[planet].tectonicActivity);
+                system.stars[star].planets[planet].RVM = planetRVM(system.stars[star].planets[planet].volcanicActivity);
 
             //Habitability
             system.stars[star].planets[planet].habitability = habitability(system, star, planet, 0);
@@ -2088,7 +2125,7 @@ struct solarSystem step32(struct solarSystem system)//Resources and Habitability
             for(moon = 1; moon <= system.stars[star].planets[planet].majourMoons; ++moon)
             {
                 //RVM
-                system.stars[star].planets[planet].moons[moon].RVM = planetRVM(system.stars[star].planets[planet].moons[moon].volcanicActivity, system.stars[star].planets[planet].moons[moon].tectonicActivity);
+                system.stars[star].planets[planet].moons[moon].RVM = planetRVM(system.stars[star].planets[planet].moons[moon].volcanicActivity);
 
                 //Habitability
                 system.stars[star].planets[planet].moons[moon].habitability = habitability(system, star, planet, moon);

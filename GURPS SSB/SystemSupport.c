@@ -12,7 +12,7 @@ struct  solarSystem initializeStars(struct solarSystem system);
 float   nextOrbit(float currentOrbit, int direction);//Returns the next orbit, direction = 1 then going outward, direction = 0 then inward
 char    planetoidType(float blackBodyTemp, char worldSize, char worldType, float massStar, float stellarAge);//Returns the world or moons type
 int     atmosphereCheck(char worldSize, char worldType);//Checks to see if the planet or moon can support an atmosphere
-struct  solarSystem orbitSort(struct solarSystem system, int sortDirection);
+struct  solarSystem orbitSort(struct solarSystem system);
 struct  atmospheres atmosphericComposition(char size, char type);//Determines the type of atmosphere and its composition
 char    marginalAtmosphere();//Determines the type of marginality
 int     hydrographicCoverage(char type, char size);//Calculates the amount of liquid coverage
@@ -38,7 +38,7 @@ float   randomRotationalPeriod(char type, char size);
 float   localCalendar(float sidereal, float period);//Calculates the apparent length of a day
 struct  solarSystem volcanism(struct solarSystem system, int star, int planet, int moon);
 char    tectonics(char size, char type, char volcanism, float hydro, int moons);
-int     planetRVM(char volcanicActivity, char tectonicActivity);
+int     planetRVM(char volcanicActivity);
 int	asteroidRVM();
 int     habitability(struct solarSystem system, int star, int planet, int moon);
 int     affinity(int RVM, int habitability);
@@ -768,14 +768,15 @@ int atmosphereCheck(char worldSize, char worldType)
     return 1;//If it gets to this point then it is atmosphere generatable
 }
 
-struct  solarSystem orbitSort(struct solarSystem system, int sortDirection)
+struct  solarSystem orbitSort(struct solarSystem system)
 {
     //sortDirection = 1 then highest to lowest, sortDirection = 0 then lowest to highest
     //This is a Bubble Sort implementation I borrowed from the internet and modified slightly
 
     int     loop = 0,
             planet = 0,
-            star = 0;
+            star = 0,
+            offset;
     float   temp = 0.0;
 
     for(loop = 0; loop < 3; ++loop)//Increments the number of planets, 0 is a bad place to start (Later decremented)
@@ -783,39 +784,33 @@ struct  solarSystem orbitSort(struct solarSystem system, int sortDirection)
 
     for(star = 0; star < 3; ++star)
     {
-        if(sortDirection == 0)
+        for(loop = 0; loop < (system.stars[star].numberOfPlanets - 1); ++loop)
         {
-            for(loop = 0; loop < (system.stars[star].numberOfPlanets - 1); ++loop)
+            for(planet = 0; planet < (20 - ( loop + 1)); ++planet)
             {
-                for(planet = 0; planet < (system.stars[star].numberOfPlanets - ( loop + 1)); ++planet)
+                if(system.stars[star].planets[planet].orbit > system.stars[star].planets[planet + 1].orbit)
                 {
-                    if(system.stars[star].planets[planet].orbit > system.stars[star].planets[planet + 1].orbit)
-                    {
-                        temp = system.stars[star].planets[planet].orbit;
-                        system.stars[star].planets[planet].orbit = system.stars[star].planets[planet + 1].orbit;
-                        system.stars[star].planets[planet + 1].orbit = temp;
-                    }
+                    temp = system.stars[star].planets[planet].orbit;
+                    system.stars[star].planets[planet].orbit = system.stars[star].planets[planet + 1].orbit;
+                    system.stars[star].planets[planet + 1].orbit = temp;
                 }
             }
         }
-        else if(sortDirection == 1)
+
+        //Top align the sort
+        offset = 0;
+        for(planet = 0; planet < MAX_PLANETS; ++planet)
         {
-            for(loop = (system.stars[star].numberOfPlanets - 1); loop < 0; ++loop)
+            //Test for blank orbit
+            if(testFloatEquality(system.stars[star].planets[planet].orbit, 0.0, 0.0001))
+                ++offset;//Count it as a blank orbit
+            else
             {
-                for(planet = (system.stars[star].numberOfPlanets - ( loop + 1)); planet < 0; ++planet)
-                {
-                    if(system.stars[star].planets[planet].orbit < system.stars[star].planets[planet + 1].orbit)
-                    {
-                        temp = system.stars[star].planets[planet].orbit;
-                        system.stars[star].planets[planet].orbit = system.stars[star].planets[planet + 1].orbit;
-                        system.stars[star].planets[planet + 1].orbit = temp;
-                    }
-                }
+                system.stars[star].planets[planet-offset].orbit = system.stars[star].planets[planet].orbit;
+                system.stars[star].planets[planet].orbit = 0;
             }
         }
-        else
-            printf("Invalid sorting chosen\n");
-    }
+   }
 
     for(loop = 0; loop < 3; ++loop)//Decrements the number of planets, returns the values to what they should be
         system.stars[loop].numberOfPlanets--;//I don't like this at all!
@@ -884,6 +879,7 @@ char planetoidType(float blackbodyTemp, char worldSize, char worldType, float ma
 
     //Tiny Planets
     if((worldSize == 'T') && (blackbodyTemp < 140))
+    {
         if(worldType == 'G')//Only a Gas giant can have a sulphur moon and even then only sometimes!
             if(polyRollDice(1,6) < 4)
                 return 'S';//Sulphur
@@ -891,7 +887,8 @@ char planetoidType(float blackbodyTemp, char worldSize, char worldType, float ma
                 return 'I';//Ice planet
         else
             return 'I';//Ice planet
-    else if((worldSize == 'T') && (blackbodyTemp > 140))
+    }
+    else if(worldSize == 'T')
         return 'R';//Rock
 
     //Small Planets
@@ -899,7 +896,7 @@ char planetoidType(float blackbodyTemp, char worldSize, char worldType, float ma
         return 'H';//Hadean
     else if((worldSize == 'S') && (blackbodyTemp > 80) && (blackbodyTemp < 141))
         return 'I';//Ice
-    else if((worldSize == 'S') && (blackbodyTemp > 141))
+    else if(worldSize == 'S')
         return 'R';//Rock
 
     //Medium or Standard Planets
@@ -908,10 +905,12 @@ char planetoidType(float blackbodyTemp, char worldSize, char worldType, float ma
     else if((worldSize == 'M') && (blackbodyTemp > 80) && (blackbodyTemp < 150))
         return 'I';//Ice
     else if((worldSize == 'M') && (blackbodyTemp > 150) && (blackbodyTemp < 230))
+    {
         if(mass < 0.65)
             return 'a';//Ammonia
         else
             return 'I';//ice
+    }
     else if((worldSize == 'M') && (blackbodyTemp > 230) && (blackbodyTemp < 240))
         return 'I';//Ice
     else if((worldSize == 'M') && (blackbodyTemp > 240) && (blackbodyTemp < 320))
@@ -927,7 +926,7 @@ char planetoidType(float blackbodyTemp, char worldSize, char worldType, float ma
     }
     else if((worldSize == 'M') && (blackbodyTemp > 320) && (blackbodyTemp < 500))
         return 'g';//Greenhouse
-    else if((worldSize == 'M') && (blackbodyTemp > 500))
+    else if(worldSize == 'M')
         return 'C';//Chthonian
 
     //Large Planets
@@ -953,7 +952,7 @@ char planetoidType(float blackbodyTemp, char worldSize, char worldType, float ma
     }
     else if((worldSize == 'L') && (blackbodyTemp > 320) && (blackbodyTemp < 500))
         return 'g';//Greenhouse
-    else if((worldSize == 'L') && (blackbodyTemp > 500))
+    else if(worldSize == 'L')
         return 'C';//Chthonian
 
     return 0;//Something has gone wrong!
@@ -1404,12 +1403,14 @@ float worldDiameter(int blackbody, float density, char size)
         min = 0.065;
         max = 0.091;
     }
+    else
+        printf("\nFailure on line %d(size = %c\n", __LINE__, size);
 
     min *= sqrt(blackbody / density);
     max *= sqrt(blackbody / density);
 
     //Multiply by 7930 to get this number in miles
-    return ((max - min) * (polyRollDice(2,6) - 2) + min);
+    return (((max - min)/10) * (polyRollDice(2,6) - 2) + min);
 }
 
 float worldDensity(char size, char type)
@@ -2277,15 +2278,12 @@ int affinity(int RVM, int habitability)
   return RVM + habitability;
 }
 
-int planetRVM(char volcanicActivity, char tectonicActivity)
+int planetRVM(char volcanicActivity)
 {
   int RVM,
       modifier;
 
 	modifier = 0;
-
-  //Generate 3d6, store in the RVM variable temporarily
-  RVM = polyRollDice(3,6);
 
   //Determine the modifier for the planets RVM
   switch(volcanicActivity)
@@ -2310,28 +2308,8 @@ int planetRVM(char volcanicActivity, char tectonicActivity)
       break;
   }
 
-  //Heavy tectonics
-  if(tectonicActivity == 'H')
-      modifier -= 1;
-
-  //Extreme tectonics
-  if(tectonicActivity == 'E')
-      modifier -=2;
-
-//These last two lines are a best guess at what the following wants
-/*
-A world�s level of geologic activity affects both its Resource Value
-Modifier and its habitability score. When rolling for the RVM of a terres-
-trial planet, modify the 3d roll for RVM by -2 for no volcanism, -1 for
-Light volcanism, +1 for Heavy volcan- ism, and +2 for Extreme volcanism.
-Tectonic activity does not affect a world�s RVM. A world�s habitability
-should be modified by -1 for Heavy volcanism or Heavy tectonic activity,
-and by -2 for Extreme volcanism or Extreme tectonic activity, to a mini-
-mum of -2. Apply  both modifiers if both forms of activity are present.
-*/
-
   //Determine the RVM
-  RVM += modifier;
+  RVM = polyRollDice(3,6) + modifier;
 
   //Determine the random part of the RVM score
   if(RVM <= 2)
